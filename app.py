@@ -97,7 +97,7 @@ def init_session_state():
 @st.cache_resource
 def load_model_and_ranges():
     try:
-        model = joblib.load('fraud_model.joblib')
+        model = joblib.load('stacked_model.joblib')
         column_ranges = joblib.load('column_ranges.joblib')
         return model, column_ranges
     except FileNotFoundError:
