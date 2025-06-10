@@ -1,6 +1,9 @@
 import streamlit as st
 import numpy as np
 import joblib
+from sklearn.preprocessing import RobustScaler
+
+scaler = RobustScaler()
 
 # Load model pipeline
 model = joblib.load('stacked_pipeline.joblib')
@@ -13,6 +16,10 @@ inputs['Time'] = st.number_input('Time (seconds)', value=0.0)
 inputs['Amount'] = st.number_input('Amount', value=0.0)
 
 if st.button('Predict Fraud'):
+    # Scale Time and Amount
+    time_scaled, amount_scaled = scaler.transform([[time_input, amount_input]])[0]
+    inputs['Time'] = time_scaled
+    inputs['Amount'] = amount_scaled
     # Convert inputs to array
     input_array = np.array([list(inputs.values())])
     prediction = model.predict(input_array)
