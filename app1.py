@@ -3,7 +3,7 @@ import numpy as np
 import joblib
 
 # Load your stacked model
-model = joblib.load('stacked_model.pkl')
+model = joblib.load('stacked_model.joblib')
 
 # Create input fields for PCA components, Time and Amount
 inputs = {}
