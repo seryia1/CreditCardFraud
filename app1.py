@@ -20,8 +20,8 @@ amount_input = st.slider('Amount', min_value=0.0, max_value=2500.0, value=0.0, s
 if st.button('Predict Fraud'):
     # Scale Time and Amount
     #time_scaled, amount_scaled = scaler.transform([[time_input, amount_input]])[0]
-    #inputs['Time'] = time_scaled
-    #inputs['Amount'] = amount_scaled
+    inputs['Time'] = time_input
+    inputs['Amount'] = amount_input
 
     # Convert inputs to array
     input_array = np.array([list(inputs.values())])
