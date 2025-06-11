@@ -6,7 +6,7 @@ from sklearn.preprocessing import RobustScaler
 scaler = RobustScaler()
 
 # Load model pipeline
-model = joblib.load('stacked_pipeline.joblib')
+model = joblib.load('stacked_pipeline1.joblib')
 
 # Input features using sliders
 inputs = {}
