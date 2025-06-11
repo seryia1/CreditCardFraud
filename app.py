@@ -8,9 +8,7 @@ from datetime import datetime
 import json
 import os
 from streamlit_option_menu import option_menu
-import pickle
-import warnings
-warnings.filterwarnings('ignore')
+import sys
 
 # Page configuration
 st.set_page_config(
@@ -84,6 +82,30 @@ def load_css():
         border-left: 4px solid #007bff;
         margin: 1rem 0;
     }
+    
+    .error-container {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid #f5c6cb;
+        margin: 1rem 0;
+    }
+    
+    .input-group {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .input-group .number-input {
+        width: 100px;
+        margin-right: 10px;
+    }
+    
+    .slider-container {
+        flex-grow: 1;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -95,71 +117,44 @@ def init_session_state():
         st.session_state.feedback_data = []
     if 'prediction_history' not in st.session_state:
         st.session_state.prediction_history = []
+    if 'input_values' not in st.session_state:
+        st.session_state.input_values = {}
+        for i in range(1, 29):
+            st.session_state.input_values[f'V{i}'] = 0.0
+        st.session_state.input_values['Time'] = 0.0
+        st.session_state.input_values['Amount'] = 0.0
 
-# Load model and column ranges with better error handling
+# Load model and column ranges
 @st.cache_resource
-def load_model_and_ranges():
+def load_model():
     try:
-        # Try loading with joblib first
-        st.info("Loading model files...")
-        model = joblib.load('stacked_model.joblib')
-        column_ranges = joblib.load('column_ranges.joblib')
-        st.success("Model loaded successfully!")
-        return model, column_ranges
-    except Exception as e:
-        st.error(f"Error loading model with joblib: {str(e)}")
+        # Check if file exists first
+        if not os.path.exists('stacked_pipeline1.joblib'):
+            st.error("❌ stacked_pipeline1.joblib not found in the project directory")
+            return None
         
-        # Try loading with pickle as fallback
-        try:
-            st.info("Trying alternative loading method...")
-            with open('stacked_model.joblib', 'rb') as f:
-                model = pickle.load(f)
-            with open('column_ranges.joblib', 'rb') as f:
-                column_ranges = pickle.load(f)
-            st.success("Model loaded with pickle!")
-            return model, column_ranges
-        except Exception as e2:
-            st.error(f"Error loading model with pickle: {str(e2)}")
-            
-            # Create a fallback model
-            st.warning("Creating fallback model for demonstration...")
-            return create_fallback_model()
-
-def create_fallback_model():
-    """Create a simple fallback model if the original can't be loaded"""
-    try:
-        from sklearn.ensemble import RandomForestClassifier
-        from sklearn.datasets import make_classification
+        # Load your specific model
+        st.info("🔄 Loading your stacked model...")
+        model = joblib.load('stacked_pipeline1.joblib')
         
-        # Create sample data
-        X, y = make_classification(
-            n_samples=1000,
-            n_features=28,
-            n_informative=20,
-            n_redundant=8,
-            n_clusters_per_class=1,
-            random_state=42
-        )
-        
-        # Train model
-        model = RandomForestClassifier(n_estimators=100, random_state=42)
-        model.fit(X, y)
-        
-        # Create column ranges
-        column_ranges = {}
-        for i in range(X.shape[1]):
-            feature_name = f'PC{i+1}'
-            column_ranges[feature_name] = {
-                'min': float(X[:, i].min()),
-                'max': float(X[:, i].max())
-            }
-        
-        st.info("Fallback model created successfully!")
-        return model, column_ranges
+        st.success("✅ Your stacked model loaded successfully!")
+        return model
         
     except Exception as e:
-        st.error(f"Could not create fallback model: {str(e)}")
-        return None, None
+        st.markdown(f"""
+        <div class="error-container">
+            <h4>❌ Error Loading Your Model</h4>
+            <p><strong>Error Details:</strong> {str(e)}</p>
+            <p><strong>Possible Solutions:</strong></p>
+            <ul>
+                <li>Your model was saved with a different version of scikit-learn</li>
+                <li>Try updating your requirements.txt to match the training environment</li>
+                <li>Re-save your model with the current environment versions</li>
+            </ul>
+            <p><strong>Current Python Version:</strong> {sys.version}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        return None
 
 # Authentication
 def authenticate(username, password):
@@ -271,76 +266,145 @@ def show_home_page():
 def show_prediction_page():
     st.markdown('<h1 class="main-header">🔍 Fraud Detection Analysis</h1>', unsafe_allow_html=True)
     
-    model, column_ranges = load_model_and_ranges()
+    model = load_model()
     
-    if model is None or column_ranges is None:
-        st.error("Unable to load model. Please check if model files exist and are compatible.")
-        st.info("Please ensure your model files are saved with compatible versions of scikit-learn and joblib.")
+    if model is None:
+        st.markdown("""
+        <div class="error-container">
+            <h3>⚠️ Model Loading Failed</h3>
+            <p>Unable to load your stacked model. Please ensure:</p>
+            <ul>
+                <li><code>stacked_pipeline1.joblib</code> is in the project root directory</li>
+                <li>The model file is compatible with the current environment</li>
+            </ul>
+            <p>The fraud detection feature is currently unavailable.</p>
+        </div>
+        """, unsafe_allow_html=True)
         return
     
     st.markdown("""
     <div style="background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); padding: 1rem; border-radius: 10px; margin-bottom: 2rem;">
         <h3 style="color: white; margin: 0;">Enter Transaction Features (PCA Components)</h3>
-        <p style="color: white; margin: 0;">Adjust the sliders below to input the PCA-transformed features of the transaction.</p>
+        <p style="color: white; margin: 0;">Adjust the sliders or enter values directly for each PCA component.</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Create input sliders
-    col1, col2 = st.columns(2)
-    features = {}
+    # Create tabs for different input methods
+    tab1, tab2 = st.tabs(["📊 Interactive Sliders", "📝 Batch Input"])
     
-    num_features = len(column_ranges)
-    half_features = num_features // 2
+    with tab1:
+        # Create input sliders with number inputs
+        st.markdown("### PCA Components")
+        
+        # Create 4 columns for better layout
+        cols = st.columns(4)
+        
+        # Create sliders for V1-V28
+        for i in range(1, 29):
+            col_idx = (i-1) % 4
+            with cols[col_idx]:
+                # Create a container for each input group
+                with st.container():
+                    # Number input and slider in the same row
+                    col1, col2 = st.columns([1, 3])
+                    with col1:
+                        # Direct number input
+                        value = st.number_input(f"V{i}", 
+                                               value=st.session_state.input_values[f'V{i}'],
+                                               min_value=-50.0, 
+                                               max_value=50.0,
+                                               step=0.1,
+                                               format="%.1f",
+                                               key=f"num_V{i}")
+                        st.session_state.input_values[f'V{i}'] = value
+                    
+                    with col2:
+                        # Slider that updates when number input changes
+                        st.slider(f"", 
+                                 min_value=-50.0, 
+                                 max_value=50.0, 
+                                 value=st.session_state.input_values[f'V{i}'],
+                                 step=0.1,
+                                 key=f"slider_V{i}",
+                                 label_visibility="collapsed")
+                        
+        # Time and Amount inputs
+        st.markdown("### Transaction Details")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            time_value = st.number_input("Time (seconds)", 
+                                        value=st.session_state.input_values['Time'],
+                                        min_value=0.0, 
+                                        max_value=200000.0,
+                                        step=1.0)
+            st.session_state.input_values['Time'] = time_value
+            st.slider("Time Slider", 
+                     min_value=0.0, 
+                     max_value=200000.0, 
+                     value=st.session_state.input_values['Time'],
+                     step=1.0)
+        
+        with col2:
+            amount_value = st.number_input("Amount ($)", 
+                                          value=st.session_state.input_values['Amount'],
+                                          min_value=0.0, 
+                                          max_value=25000.0,
+                                          step=1.0)
+            st.session_state.input_values['Amount'] = amount_value
+            st.slider("Amount Slider", 
+                     min_value=0.0, 
+                     max_value=25000.0, 
+                     value=st.session_state.input_values['Amount'],
+                     step=1.0)
     
-    with col1:
-        for i in range(half_features):
-            feature_name = f'PC{i+1}'
-            if feature_name in column_ranges:
-                min_val = float(column_ranges[feature_name]['min'])
-                max_val = float(column_ranges[feature_name]['max'])
-                features[feature_name] = st.slider(
-                    f'{feature_name}',
-                    min_value=min_val,
-                    max_value=max_val,
-                    value=(min_val + max_val) / 2,
-                    step=(max_val - min_val) / 100
-                )
-    
-    with col2:
-        for i in range(half_features, num_features):
-            feature_name = f'PC{i+1}'
-            if feature_name in column_ranges:
-                min_val = float(column_ranges[feature_name]['min'])
-                max_val = float(column_ranges[feature_name]['max'])
-                features[feature_name] = st.slider(
-                    f'{feature_name}',
-                    min_value=min_val,
-                    max_value=max_val,
-                    value=(min_val + max_val) / 2,
-                    step=(max_val - min_val) / 100
-                )
+    with tab2:
+        st.markdown("### Paste Multiple Values")
+        st.markdown("Enter comma-separated values for all features (V1-V28, Time, Amount) in one go:")
+        
+        # Text area for batch input
+        batch_input = st.text_area("Format: V1,V2,...,V28,Time,Amount", 
+                                  placeholder="Example: 0.1,-0.2,0.3,...,120,50.5")
+        
+        if st.button("Apply Batch Values"):
+            try:
+                values = [float(x.strip()) for x in batch_input.split(',')]
+                if len(values) == 30:  # 28 V features + Time + Amount
+                    for i in range(1, 29):
+                        st.session_state.input_values[f'V{i}'] = values[i-1]
+                    st.session_state.input_values['Time'] = values[28]
+                    st.session_state.input_values['Amount'] = values[29]
+                    st.success("✅ Values applied successfully!")
+                else:
+                    st.error(f"❌ Expected 30 values, but got {len(values)}. Please check your input.")
+            except Exception as e:
+                st.error(f"❌ Error parsing values: {str(e)}")
     
     # Prediction button
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("🔍 Analyze Transaction", type="primary", use_container_width=True):
             try:
-                # Make prediction
-                feature_array = np.array([list(features.values())])
-                prediction = model.predict(feature_array)[0]
+                # Prepare input array
+                inputs = {}
+                for i in range(1, 29):
+                    inputs[f'V{i}'] = st.session_state.input_values[f'V{i}']
                 
-                # Handle different model types for probability prediction
-                try:
-                    prediction_proba = model.predict_proba(feature_array)[0]
-                    confidence = max(prediction_proba) * 100
-                except:
-                    # Fallback if predict_proba is not available
-                    confidence = 85.0 if prediction == 1 else 75.0
+                inputs['Time'] = st.session_state.input_values['Time']
+                inputs['Amount'] = st.session_state.input_values['Amount']
+                
+                # Convert inputs to array
+                input_array = np.array([list(inputs.values())])
+                
+                # Make prediction
+                prediction = model.predict(input_array)[0]
+                proba = model.predict_proba(input_array)[0][1]
+                confidence = proba * 100
                 
                 # Store prediction
                 prediction_data = {
                     'timestamp': datetime.now().isoformat(),
-                    'features': features,
+                    'features': inputs,
                     'prediction': int(prediction),
                     'confidence': confidence
                 }
@@ -417,8 +481,8 @@ def show_prediction_page():
                     st.success("Thank you for your feedback! 🙏")
                     
             except Exception as e:
-                st.error(f"Error making prediction: {str(e)}")
-                st.info("Please check that your model is compatible with the current environment.")
+                st.error(f"❌ Error making prediction: {str(e)}")
+                st.info("Please check that your input values are valid.")
 
 def show_admin_dashboard():
     st.markdown('<h1 class="main-header">👨‍💼 Admin Dashboard</h1>', unsafe_allow_html=True)
