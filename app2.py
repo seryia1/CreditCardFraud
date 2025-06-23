@@ -32,6 +32,7 @@ logging.basicConfig(
         logging.FileHandler('fraud_detection.log'),
         logging.StreamHandler()
     ]
+)  # Add this missing closing parenthesis
 logger = logging.getLogger(__name__)
 
 # Custom CSS
