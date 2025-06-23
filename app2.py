@@ -32,6 +32,7 @@ logging.basicConfig(
         logging.FileHandler('fraud_detection.log'),
         logging.StreamHandler()
     ]
+)
 logger = logging.getLogger(__name__)
 
 # Custom CSS
@@ -91,59 +92,12 @@ def load_css():
         margin: 0.5rem 0;
     }
     
-    .feedback-container {
-        background: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 4px solid #007bff;
-        margin: 1rem 0;
-    }
-    
-    .error-container {
-        background: #f8d7da;
-        color: #721c24;
-        padding: 1rem;
-        border-radius: 10px;
-        border: 1px solid #f5c6cb;
-        margin: 1rem 0;
-    }
-    
-    .input-group {
-        display: flex;
-        align-items: center;
-        margin-bottom: 1rem;
-    }
-    
-    .input-group .number-input {
-        width: 100px;
-        margin-right: 10px;
-    }
-    
-    .slider-container {
-        flex-grow: 1;
-    }
-    
-    .monitoring-card {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 0.5rem 0;
-    }
-    
     .alert-card {
         background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
         padding: 1rem;
         border-radius: 10px;
         border-left: 4px solid #ff6b6b;
         margin: 1rem 0;
-    }
-    
-    .performance-card {
-        background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 0.5rem 0;
     }
     
     .error-container {
@@ -157,20 +111,16 @@ def load_css():
     </style>
     """, unsafe_allow_html=True)
 
-# Initialize session state for monitoring
+# Initialize session state
 def init_session_state():
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
     if 'prediction_history' not in st.session_state:
         st.session_state.prediction_history = []
-    if 'performance_metrics' not in st.session_state:
-        st.session_state.performance_metrics = []
     if 'system_metrics' not in st.session_state:
         st.session_state.system_metrics = []
     if 'alerts' not in st.session_state:
         st.session_state.alerts = []
-    if 'feature_stats' not in st.session_state:
-        st.session_state.feature_stats = defaultdict(list)
     if 'input_values' not in st.session_state:
         st.session_state.input_values = {}
         for i in range(1, 29):
@@ -238,10 +188,6 @@ def log_prediction(inputs, prediction, confidence, response_time):
     }
     
     st.session_state.prediction_history.append(prediction_data)
-    
-    # Log feature statistics for drift detection
-    for feature, value in inputs.items():
-        st.session_state.feature_stats[feature].append(value)
     
     # Log to file
     logger.info(f"Prediction made: {prediction} (confidence: {confidence:.2f}%, response_time: {response_time*1000:.2f}ms)")
@@ -335,36 +281,9 @@ def calculate_performance_metrics():
 def authenticate(username, password):
     return username == "admin" and password == "admin"
 
-# Save feedback
-def save_feedback(prediction, confidence, user_feedback, actual_result):
-    feedback_entry = {
-        'timestamp': datetime.now().isoformat(),
-        'prediction': prediction,
-        'confidence': confidence,
-        'user_feedback': user_feedback,
-        'actual_result': actual_result
-    }
-    st.session_state.feedback_data.append(feedback_entry)
-    
-    # Save to file
-    try:
-        with open('feedback_data.json', 'w') as f:
-            json.dump(st.session_state.feedback_data, f)
-    except:
-        pass
-
-# Load feedback data
-def load_feedback_data():
-    try:
-        with open('feedback_data.json', 'r') as f:
-            st.session_state.feedback_data = json.load(f)
-    except FileNotFoundError:
-        st.session_state.feedback_data = []
-
 def main():
     load_css()
     init_session_state()
-    load_feedback_data()
     
     # Navigation
     with st.sidebar:
@@ -373,8 +292,8 @@ def main():
         
         selected = option_menu(
             menu_title="Navigation",
-            options=["🏠 Home", "🔍 Fraud Detection", "📊 Monitoring Dashboard"],
-            icons=["house", "search", "bar-chart"],
+            options=["🏠 Home", "🔍 Fraud Detection", "📊 Admin Dashboard"],
+            icons=["house", "search", "person-gear"],
             menu_icon="cast",
             default_index=0,
             styles={
@@ -389,8 +308,8 @@ def main():
         show_home_page()
     elif selected == "🔍 Fraud Detection":
         show_prediction_page()
-    elif selected == "📊 Monitoring Dashboard":
-        show_monitoring_dashboard()
+    elif selected == "📊 Admin Dashboard":
+        show_admin_dashboard()
 
 def show_home_page():
     st.markdown('<h1 class="main-header">💳 Credit Card Fraud Detection System</h1>', unsafe_allow_html=True)
@@ -433,8 +352,8 @@ def show_home_page():
     with col3:
         st.markdown("""
         <div class="metric-card">
-            <h3>📊 Advanced Monitoring</h3>
-            <p>Complete observability with alerts and performance metrics.</p>
+            <h3>📊 System Monitoring</h3>
+            <p>Complete system health monitoring with automated alerts.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -632,8 +551,8 @@ def show_prediction_page():
                 st.error(f"❌ Error making prediction: {str(e)}")
                 logger.error(f"Prediction error: {str(e)}")
 
-def show_monitoring_dashboard():
-    st.markdown('<h1 class="main-header">📊 Monitoring Dashboard</h1>', unsafe_allow_html=True)
+def show_admin_dashboard():
+    st.markdown('<h1 class="main-header">📊 Admin Dashboard</h1>', unsafe_allow_html=True)
     
     if not st.session_state.authenticated:
         st.markdown("""
@@ -668,7 +587,7 @@ def show_monitoring_dashboard():
         # Check for alerts
         current_alerts = check_for_alerts()
         
-        # Display alerts
+        # 🚨 Alert System
         if st.session_state.alerts:
             st.markdown("### 🚨 Active Alerts")
             for alert in st.session_state.alerts[-5:]:  # Show last 5 alerts
@@ -681,11 +600,11 @@ def show_monitoring_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
         
-        # Performance metrics
+        # 🔍 Performance Monitoring
         performance_metrics = calculate_performance_metrics()
         
         if performance_metrics:
-            st.markdown("### 📈 Model Performance Metrics")
+            st.markdown("### 🔍 Performance Monitoring")
             
             col1, col2, col3, col4 = st.columns(4)
             
@@ -701,36 +620,36 @@ def show_monitoring_dashboard():
             with col4:
                 st.metric("Avg Response Time", f"{performance_metrics['avg_response_time_ms']:.0f}ms")
             
-            # Confidence distribution
-            col1, col2 = st.columns(2)
+            # Confidence Distribution Chart
+            st.markdown("#### Confidence Distribution")
+            confidence_data = {
+                'Confidence Level': ['High (>80%)', 'Medium (60-80%)', 'Low (<60%)'],
+                'Percentage': [
+                    performance_metrics['high_confidence_pct'],
+                    performance_metrics['medium_confidence_pct'],
+                    performance_metrics['low_confidence_pct']
+                ]
+            }
+            fig_confidence = px.pie(confidence_data, values='Percentage', names='Confidence Level',
+                                  title="Confidence Distribution")
+            st.plotly_chart(fig_confidence, use_container_width=True)
             
-            with col1:
-                confidence_data = {
-                    'Confidence Level': ['High (>80%)', 'Medium (60-80%)', 'Low (<60%)'],
-                    'Percentage': [
-                        performance_metrics['high_confidence_pct'],
-                        performance_metrics['medium_confidence_pct'],
-                        performance_metrics['low_confidence_pct']
-                    ]
-                }
-                fig_confidence = px.pie(confidence_data, values='Percentage', names='Confidence Level',
-                                      title="Confidence Distribution")
-                st.plotly_chart(fig_confidence, use_container_width=True)
-            
-            with col2:
-                # Fraud vs Normal distribution
-                fraud_data = {
-                    'Type': ['Normal', 'Fraud'],
-                    'Count': [performance_metrics['normal_predictions'], performance_metrics['fraud_predictions']]
-                }
-                fig_fraud = px.pie(fraud_data, values='Count', names='Type',
-                                 title="Prediction Distribution",
-                                 color_discrete_map={'Normal': 'green', 'Fraud': 'red'})
-                st.plotly_chart(fig_fraud, use_container_width=True)
+            # Fraud Rate Monitoring Chart
+            if st.session_state.prediction_history:
+                st.markdown("#### Fraud Rate Monitoring")
+                df_predictions = pd.DataFrame(st.session_state.prediction_history[-100:])  # Last 100 predictions
+                df_predictions['timestamp'] = pd.to_datetime(df_predictions['timestamp'])
+                df_predictions['result'] = df_predictions['prediction'].map({0: 'Normal', 1: 'Fraud'})
+                
+                fig_timeline = px.scatter(df_predictions, x='timestamp', y='confidence', 
+                                        color='result', size='response_time_ms',
+                                        title='Prediction Confidence and Response Time Over Time',
+                                        color_discrete_map={'Normal': 'green', 'Fraud': 'red'})
+                st.plotly_chart(fig_timeline, use_container_width=True)
         
-        # System metrics
+        # 📊 System Health Monitoring
         if st.session_state.system_metrics:
-            st.markdown("### 🖥️ System Performance")
+            st.markdown("### 📊 System Health Monitoring")
             
             latest_metrics = st.session_state.system_metrics[-1]
             
@@ -747,62 +666,11 @@ def show_monitoring_dashboard():
             
             with col4:
                 st.metric("Disk Usage", f"{latest_metrics['disk_percent']:.1f}%")
-        
-        # Prediction timeline
-        if st.session_state.prediction_history:
-            st.markdown("### 📊 Prediction Timeline")
             
-            df_predictions = pd.DataFrame(st.session_state.prediction_history[-100:])  # Last 100 predictions
-            df_predictions['timestamp'] = pd.to_datetime(df_predictions['timestamp'])
-            df_predictions['result'] = df_predictions['prediction'].map({0: 'Normal', 1: 'Fraud'})
-            
-            fig_timeline = px.scatter(df_predictions, x='timestamp', y='confidence', 
-                                    color='result', size='response_time_ms',
-                                    title='Prediction Confidence and Response Time Over Time',
-                                    color_discrete_map={'Normal': 'green', 'Fraud': 'red'})
-            st.plotly_chart(fig_timeline, use_container_width=True)
-            
-            # Response time trend
-            fig_response = px.line(df_predictions, x='timestamp', y='response_time_ms',
-                                 title='Response Time Trend')
-            st.plotly_chart(fig_response, use_container_width=True)
-        
-        # Feature drift detection
-        if st.session_state.feature_stats:
-            st.markdown("### 🔄 Feature Drift Analysis")
-            
-            # Show statistics for key features
-            key_features = ['V1', 'V2', 'V3', 'Amount', 'Time']
-            
-            for feature in key_features:
-                if feature in st.session_state.feature_stats and len(st.session_state.feature_stats[feature]) > 10:
-                    values = st.session_state.feature_stats[feature][-100:]  # Last 100 values
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric(f"{feature} Mean", f"{np.mean(values):.3f}")
-                    with col2:
-                        st.metric(f"{feature} Std", f"{np.std(values):.3f}")
-                    with col3:
-                        st.metric(f"{feature} Range", f"{np.max(values) - np.min(values):.3f}")
-        
-        # Detailed logs
-        st.markdown("### 📋 Recent Activity Log")
-        
-        if st.session_state.prediction_history:
-            recent_predictions = st.session_state.prediction_history[-10:]  # Last 10 predictions
-            
-            log_data = []
-            for pred in recent_predictions:
-                log_data.append({
-                    'Timestamp': pred['timestamp'],
-                    'Prediction': 'Fraud' if pred['prediction'] == 1 else 'Normal',
-                    'Confidence': f"{pred['confidence']:.2f}%",
-                    'Response Time': f"{pred['response_time_ms']:.0f}ms",
-                    'Amount': f"${pred['features']['Amount']:.2f}"
-                })
-            
-            st.dataframe(pd.DataFrame(log_data), use_container_width=True)
+            # Model Status
+            model = load_model()
+            model_status = "✅ Loaded" if model is not None else "❌ Failed"
+            st.markdown(f"**Model Status:** {model_status}")
 
 if __name__ == "__main__":
     main()
