@@ -32,7 +32,6 @@ logging.basicConfig(
         logging.FileHandler('fraud_detection.log'),
         logging.StreamHandler()
     ]
-)
 logger = logging.getLogger(__name__)
 
 # Custom CSS
@@ -578,19 +577,58 @@ def show_admin_dashboard():
             st.session_state.authenticated = False
             st.rerun()
         
-        # Auto-refresh toggle
-        auto_refresh = st.checkbox("Auto-refresh (30s)", value=False)
-        if auto_refresh:
-            time.sleep(30)
-            st.rerun()
+        # 🔍 Performance Monitoring - Always show basic stats
+        st.markdown("### 🔍 Performance Monitoring")
+        
+        total_predictions = len(st.session_state.prediction_history)
+        fraud_count = sum(1 for p in st.session_state.prediction_history if p['prediction'] == 1) if total_predictions > 0 else 0
+        fraud_rate = (fraud_count / total_predictions * 100) if total_predictions > 0 else 0
+        avg_confidence = np.mean([p['confidence'] for p in st.session_state.prediction_history]) if total_predictions > 0 else 0
+        avg_response_time = np.mean([p['response_time_ms'] for p in st.session_state.prediction_history]) if total_predictions > 0 else 0
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total Predictions", total_predictions)
+        
+        with col2:
+            st.metric("Fraud Rate", f"{fraud_rate:.1f}%")
+        
+        with col3:
+            st.metric("Avg Confidence", f"{avg_confidence:.1f}%")
+        
+        with col4:
+            st.metric("Avg Response Time", f"{avg_response_time:.0f}ms")
+        
+        # Show confidence distribution even with no data
+        if total_predictions > 0:
+            high_confidence = sum(1 for p in st.session_state.prediction_history if p['confidence'] > 80)
+            medium_confidence = sum(1 for p in st.session_state.prediction_history if 60 <= p['confidence'] <= 80)
+            low_confidence = sum(1 for p in st.session_state.prediction_history if p['confidence'] < 60)
+            
+            confidence_data = {
+                'Confidence Level': ['High (>80%)', 'Medium (60-80%)', 'Low (<60%)'],
+                'Count': [high_confidence, medium_confidence, low_confidence]
+            }
+        else:
+            confidence_data = {
+                'Confidence Level': ['High (>80%)', 'Medium (60-80%)', 'Low (<60%)'],
+                'Count': [0, 0, 0]
+            }
+        
+        fig_confidence = px.pie(confidence_data, values='Count', names='Confidence Level',
+                              title="Confidence Distribution")
+        st.plotly_chart(fig_confidence, use_container_width=True)
+        
+        # 🚨 Alert System - Always show current status
+        st.markdown("### 🚨 Alert System")
         
         # Check for alerts
         current_alerts = check_for_alerts()
         
-        # 🚨 Alert System
         if st.session_state.alerts:
-            st.markdown("### 🚨 Active Alerts")
-            for alert in st.session_state.alerts[-5:]:  # Show last 5 alerts
+            st.success(f"🔔 {len(st.session_state.alerts)} alerts generated")
+            for alert in st.session_state.alerts[-3:]:  # Show last 3 alerts
                 severity_color = {"HIGH": "#ff4444", "MEDIUM": "#ffaa00", "LOW": "#44ff44"}
                 st.markdown(f"""
                 <div class="alert-card" style="border-left-color: {severity_color.get(alert['severity'], '#cccccc')}">
@@ -599,78 +637,64 @@ def show_admin_dashboard():
                     <small>{alert['timestamp']}</small>
                 </div>
                 """, unsafe_allow_html=True)
+        else:
+            st.info("✅ No alerts - System running normally")
         
-        # 🔍 Performance Monitoring
-        performance_metrics = calculate_performance_metrics()
+        # Alert thresholds info
+        st.markdown("""
+        **Alert Thresholds:**
+        - 🔴 High Fraud Rate: >10% fraud predictions
+        - 🟡 Slow Response: >1000ms response time  
+        - 🟡 Low Confidence: >30% predictions with <60% confidence
+        """)
         
-        if performance_metrics:
-            st.markdown("### 🔍 Performance Monitoring")
-            
+        # 📊 System Health Monitoring - Always show current system stats
+        st.markdown("### 📊 System Health Monitoring")
+        
+        # Get current system metrics
+        current_metrics = get_system_metrics()
+        if current_metrics:
+            st.session_state.system_metrics.append(current_metrics)
+        
+        if current_metrics:
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Total Predictions", performance_metrics['total_predictions'])
+                st.metric("CPU Usage", f"{current_metrics['cpu_percent']:.1f}%")
             
             with col2:
-                st.metric("Fraud Rate", f"{performance_metrics['fraud_rate']:.1f}%")
+                st.metric("Memory Usage", f"{current_metrics['memory_percent']:.1f}%")
             
             with col3:
-                st.metric("Avg Confidence", f"{performance_metrics['avg_confidence']:.1f}%")
+                st.metric("Available Memory", f"{current_metrics['memory_available_gb']:.1f}GB")
             
             with col4:
-                st.metric("Avg Response Time", f"{performance_metrics['avg_response_time_ms']:.0f}ms")
-            
-            # Confidence Distribution Chart
-            st.markdown("#### Confidence Distribution")
-            confidence_data = {
-                'Confidence Level': ['High (>80%)', 'Medium (60-80%)', 'Low (<60%)'],
-                'Percentage': [
-                    performance_metrics['high_confidence_pct'],
-                    performance_metrics['medium_confidence_pct'],
-                    performance_metrics['low_confidence_pct']
-                ]
-            }
-            fig_confidence = px.pie(confidence_data, values='Percentage', names='Confidence Level',
-                                  title="Confidence Distribution")
-            st.plotly_chart(fig_confidence, use_container_width=True)
-            
-            # Fraud Rate Monitoring Chart
-            if st.session_state.prediction_history:
-                st.markdown("#### Fraud Rate Monitoring")
-                df_predictions = pd.DataFrame(st.session_state.prediction_history[-100:])  # Last 100 predictions
-                df_predictions['timestamp'] = pd.to_datetime(df_predictions['timestamp'])
-                df_predictions['result'] = df_predictions['prediction'].map({0: 'Normal', 1: 'Fraud'})
-                
-                fig_timeline = px.scatter(df_predictions, x='timestamp', y='confidence', 
-                                        color='result', size='response_time_ms',
-                                        title='Prediction Confidence and Response Time Over Time',
-                                        color_discrete_map={'Normal': 'green', 'Fraud': 'red'})
-                st.plotly_chart(fig_timeline, use_container_width=True)
+                st.metric("Disk Usage", f"{current_metrics['disk_percent']:.1f}%")
+        else:
+            st.warning("⚠️ Unable to get system metrics")
         
-        # 📊 System Health Monitoring
-        if st.session_state.system_metrics:
-            st.markdown("### 📊 System Health Monitoring")
-            
-            latest_metrics = st.session_state.system_metrics[-1]
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("CPU Usage", f"{latest_metrics['cpu_percent']:.1f}%")
-            
-            with col2:
-                st.metric("Memory Usage", f"{latest_metrics['memory_percent']:.1f}%")
-            
-            with col3:
-                st.metric("Available Memory", f"{latest_metrics['memory_available_gb']:.1f}GB")
-            
-            with col4:
-                st.metric("Disk Usage", f"{latest_metrics['disk_percent']:.1f}%")
-            
-            # Model Status
-            model = load_model()
-            model_status = "✅ Loaded" if model is not None else "❌ Failed"
-            st.markdown(f"**Model Status:** {model_status}")
+        # Model Status - Always show
+        model = load_model()
+        if model is not None:
+            st.success("✅ **Model Status:** Loaded and Ready")
+        else:
+            st.error("❌ **Model Status:** Failed to Load")
+        
+        # Simple system info
+        st.markdown("### ℹ️ System Information")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.info(f"**Python Version:** {sys.version.split()[0]}")
+            st.info(f"**Streamlit Version:** {st.__version__}")
+        
+        with col2:
+            st.info(f"**Current Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            st.info(f"**Session Duration:** {len(st.session_state.prediction_history)} predictions made")
+        
+        # Manual refresh button
+        if st.button("🔄 Refresh Dashboard", type="secondary"):
+            st.rerun()
 
 if __name__ == "__main__":
     main()
